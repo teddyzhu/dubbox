@@ -93,15 +93,15 @@ public class DubboCodec extends ExchangeCodec implements Codec2 {
                     } else {
                         DecodeableRpcResult result;
                         if (channel.getUrl().getParameter(
-                            Constants.DECODE_IN_IO_THREAD_KEY,
-                            Constants.DEFAULT_DECODE_IN_IO_THREAD)) {
+                                Constants.DECODE_IN_IO_THREAD_KEY,
+                                Constants.DEFAULT_DECODE_IN_IO_THREAD)) {
                             result = new DecodeableRpcResult(channel, res, is,
-                                                             (Invocation)getRequestData(id), proto);
+                                    (Invocation)getRequestData(id), proto);
                             result.decode();
                         } else {
                             result = new DecodeableRpcResult(channel, res,
-                                                             new UnsafeByteArrayInputStream(readMessageData(is)),
-                                                             (Invocation) getRequestData(id), proto);
+                                    new UnsafeByteArrayInputStream(readMessageData(is)),
+                                    (Invocation) getRequestData(id), proto);
                         }
                         data = result;
                     }
@@ -134,13 +134,13 @@ public class DubboCodec extends ExchangeCodec implements Codec2 {
                 } else {
                     DecodeableRpcInvocation inv;
                     if (channel.getUrl().getParameter(
-                        Constants.DECODE_IN_IO_THREAD_KEY,
-                        Constants.DEFAULT_DECODE_IN_IO_THREAD)) {
+                            Constants.DECODE_IN_IO_THREAD_KEY,
+                            Constants.DEFAULT_DECODE_IN_IO_THREAD)) {
                         inv = new DecodeableRpcInvocation(channel, req, is, proto);
                         inv.decode();
                     } else {
                         inv = new DecodeableRpcInvocation(channel, req,
-                                                          new UnsafeByteArrayInputStream(readMessageData(is)), proto);
+                                new UnsafeByteArrayInputStream(readMessageData(is)), proto);
                     }
                     data = inv;
                 }
@@ -158,7 +158,7 @@ public class DubboCodec extends ExchangeCodec implements Codec2 {
     }
 
     private ObjectInput deserialize(Serialization serialization, URL url, InputStream is)
-        throws IOException {
+            throws IOException {
         return serialization.deserialize(url, is);
     }
 
@@ -183,16 +183,17 @@ public class DubboCodec extends ExchangeCodec implements Codec2 {
 
         // NOTICE modified by lishen
         // TODO
-        if (getSerialization(channel) instanceof OptimizedSerialization) {
+        if (getSerialization(channel) instanceof OptimizedSerialization && !containComplexArguments(inv)) {
             out.writeInt(inv.getParameterTypes().length);
         } else {
+            out.writeInt(-1);
             out.writeUTF(ReflectUtils.getDesc(inv.getParameterTypes()));
         }
         Object[] args = inv.getArguments();
         if (args != null)
-        for (int i = 0; i < args.length; i++){
-            out.writeObject(encodeInvocationArgument(channel, inv, i));
-        }
+            for (int i = 0; i < args.length; i++){
+                out.writeObject(encodeInvocationArgument(channel, inv, i));
+            }
         out.writeObject(inv.getAttachments());
     }
 
@@ -213,5 +214,15 @@ public class DubboCodec extends ExchangeCodec implements Codec2 {
             out.writeByte(RESPONSE_WITH_EXCEPTION);
             out.writeObject(th);
         }
+    }
+
+    // workaround for the target method matching of kryo & fst
+    private boolean containComplexArguments(RpcInvocation invocation) {
+        for (int i = 0; i < invocation.getParameterTypes().length; i++) {
+            if (invocation.getParameterTypes()[i] != invocation.getArguments()[i].getClass()) {
+                return true;
+            }
+        }
+        return false;
     }
 }
